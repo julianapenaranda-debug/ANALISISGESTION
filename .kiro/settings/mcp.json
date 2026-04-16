@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "atlassian-jira": {
+      "command": "/Users/JulianaPenarandaMogollon/.nvm/versions/node/v24.13.1/bin/npx",
+      "args": [
+        "-y",
+        "@aashari/mcp-server-atlassian-jira@latest"
+      ],
+      "env": {
+        "PATH": "/Users/JulianaPenarandaMogollon/.nvm/versions/node/v24.13.1/bin:/usr/local/bin:/usr/bin:/bin",
+        "ATLASSIAN_SITE_URL": "https://jirasegurosbolivar.atlassian.net",
+        "ATLASSIAN_USER_EMAIL": "${ATLASSIAN_EMAIL}",
+        "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "atlassian-confluence": {
+      "command": "/Users/JulianaPenarandaMogollon/.nvm/versions/node/v24.13.1/bin/npx",
+      "args": [
+        "-y",
+        "@aashari/mcp-server-atlassian-confluence@latest"
+      ],
+      "env": {
+        "PATH": "/Users/JulianaPenarandaMogollon/.nvm/versions/node/v24.13.1/bin:/usr/local/bin:/usr/bin:/bin",
+        "ATLASSIAN_SITE_URL": "https://jirasegurosbolivar.atlassian.net",
+        "ATLASSIAN_USER_EMAIL": "${ATLASSIAN_EMAIL}",
+        "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

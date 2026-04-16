@@ -1,0 +1,31 @@
+{
+  "name": "po-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de automatización para Product Owners - Generación de historias de usuario, análisis de Figma y sincronización con Jira",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspaces --if-present",
+    "test:property": "npm run test:property --workspaces --if-present",
+    "test:integration": "npm run test:integration --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "product-owner",
+    "user-stories",
+    "jira",
+    "figma",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT"
+}
