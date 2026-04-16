@@ -859,7 +859,10 @@ export async function fetchProjects(
     const values: any[] = response?.values ?? [];
 
     for (const p of values) {
-      if (keyPrefix && !p.key.startsWith(keyPrefix)) continue;
+      if (keyPrefix) {
+        const prefixes = keyPrefix.split(',').map(p => p.trim());
+        if (!prefixes.some(pfx => p.key.startsWith(pfx))) continue;
+      }
       allProjects.push({
         id: p.id ?? '',
         key: p.key ?? '',

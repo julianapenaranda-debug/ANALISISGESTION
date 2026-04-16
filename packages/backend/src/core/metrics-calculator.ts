@@ -128,7 +128,10 @@ export function calculateTeamAverages(
     return { averageActivePoints: 0, averageVelocity: 0, averageCycleTime: null };
   }
 
-  const activeCount = allStories.filter(s => isActive(s.status)).length;
+  const activeCount = allStories.filter(s => {
+    const bucket = mapStatusBucket(s.status);
+    return bucket === 'inProgress';
+  }).length;
   const doneStories = allStories.filter(s => isDone(s.status));
   const completedCount = doneStories.length;
 
@@ -213,14 +216,14 @@ export function calculateDeveloperMetrics(
       ? cycleTimes.reduce((a, b) => a + b, 0) / cycleTimes.length
       : null;
 
-  // Workload status — based on active issue count vs team average
+  // Workload status — based on issues in progress vs team average
   const avgActive = teamAverages.averageActivePoints;
   let workloadStatus: DeveloperMetrics['workloadStatus'];
   if (avgActive === 0) {
-    workloadStatus = activeStories.length > 0 ? 'overloaded' : 'normal';
-  } else if (activeStories.length > avgActive * OVERLOADED_THRESHOLD) {
+    workloadStatus = inProgressCount > 0 ? 'overloaded' : 'normal';
+  } else if (inProgressCount > avgActive * OVERLOADED_THRESHOLD) {
     workloadStatus = 'overloaded';
-  } else if (activeStories.length < avgActive * UNDERLOADED_THRESHOLD) {
+  } else if (inProgressCount < avgActive * UNDERLOADED_THRESHOLD && inProgressCount === 0 && doneStories.length === 0) {
     workloadStatus = 'underloaded';
   } else {
     workloadStatus = 'normal';
@@ -284,45 +287,27 @@ export function buildAlerts(developers: DeveloperMetrics[]): WorkloadAlert[] {
     const isLowProductivity = dev.productivityStatus === 'low';
     const isMultitasking = dev.multitaskingAlert;
 
-    const problemCount = [isOverloaded, isLowProductivity, isMultitasking].filter(Boolean).length;
-    if (problemCount === 0) continue;
+    const problems: string[] = [];
+    if (isOverloaded) problems.push(`${dev.inProgressCount} issues en progreso (sobrecarga)`);
+    if (isLowProductivity) problems.push(`${dev.velocityIndividual} issues completadas (baja productividad)`);
+    if (isMultitasking) problems.push(`${dev.storiesInProgress} HUs en progreso simultáneamente (multitasking)`);
 
-    const severity: WorkloadAlert['severity'] = problemCount >= 2 ? 'high' : 'medium';
+    if (problems.length === 0) continue;
 
-    if (isOverloaded) {
-      alerts.push({
-        accountId: dev.accountId,
-        displayName: dev.displayName,
-        type: 'overloaded',
-        description: `${dev.displayName} tiene ${dev.assignedHUs} issues activas, superando el promedio del equipo.`,
-        severity,
-        activeStoryPoints: dev.activeStoryPoints,
-      });
-    }
+    const severity: WorkloadAlert['severity'] = problems.length >= 2 ? 'high' : 'medium';
+    const mainType = isOverloaded ? 'overloaded' : isLowProductivity ? 'low_productivity' : 'multitasking';
 
-    if (isLowProductivity) {
-      alerts.push({
-        accountId: dev.accountId,
-        displayName: dev.displayName,
-        type: 'low_productivity',
-        description: `${dev.displayName} tiene baja productividad con ${dev.velocityIndividual} issues completadas (promedio del equipo más alto).`,
-        severity,
-        velocityIndividual: dev.velocityIndividual,
-      });
-    }
-
-    if (isMultitasking) {
-      alerts.push({
-        accountId: dev.accountId,
-        displayName: dev.displayName,
-        type: 'multitasking',
-        description: `${dev.displayName} tiene ${dev.storiesInProgress} HUs en progreso simultáneamente (sin contar sub-tareas).`,
-        severity,
-      });
-    }
+    alerts.push({
+      accountId: dev.accountId,
+      displayName: dev.displayName,
+      type: mainType,
+      description: `${dev.displayName}: ${problems.join(' · ')}`,
+      severity,
+      activeStoryPoints: dev.activeStoryPoints,
+      velocityIndividual: dev.velocityIndividual,
+    });
   }
 
-  // Sort: high severity first
   alerts.sort((a, b) => {
     if (a.severity === b.severity) return 0;
     return a.severity === 'high' ? -1 : 1;
@@ -370,14 +355,14 @@ export function calculateSummary(
   const totalRework = developers.reduce((sum, d) => sum + d.reworkCount, 0);
   const reworkRatio = teamThroughput > 0 ? totalRework / teamThroughput : 0;
 
-  // Predictability: 1 - coefficient of variation of individual velocities
-  const velocities = developers.map(d => d.velocityIndividual).filter(v => v > 0);
+  // Predictability: % of commitments met (issues with due date delivered on time)
   let predictabilityIndex: number | null = null;
-  if (velocities.length >= 2) {
-    const mean = velocities.reduce((a, b) => a + b, 0) / velocities.length;
-    const variance = velocities.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / velocities.length;
-    const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
-    predictabilityIndex = Math.max(0, Math.min(1, 1 - cv));
+  const issuesWithDueDate = allStories.filter(s => (s as any).dueDate);
+  // Since we don't have dueDate in JiraStory, use ratio of completed vs total assigned
+  const totalAssigned = allStories.length;
+  const totalCompleted = developers.reduce((sum, d) => sum + d.completedHUs, 0);
+  if (totalAssigned > 0) {
+    predictabilityIndex = Math.min(1, totalCompleted / totalAssigned);
   }
 
   // SP distribution equity: 1 - Gini coefficient of active SP per dev

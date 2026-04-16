@@ -20,6 +20,7 @@ interface Metrics {
   production?: { activeIncidents: number; incidentsBySeverity: { critical: number; high: number; medium: number; low: number }; openProblems: number; avgIncidentResolutionDays: number | null };
   issueTypeBreakdown?: Array<{ type: string; total: number; open: number; done: number }>;
   progress?: { totalStories: number; completedStories: number; inProgressStories: number; todoStories: number; completionRate: number; totalStoryPoints: number; completedStoryPoints: number; storyPointsCompletionRate: number };
+  valueMetrics?: { productionDeployRate: number; inProductionCount: number; completedNotDeployed: number; plannedVsDelivered: { planned: number; delivered: number; ratio: number }; timeToProduction: number | null; valueByPriority: { high: number; medium: number; low: number } };
 }
 
 export default function MetricsView() {
@@ -342,6 +343,53 @@ export default function MetricsView() {
           {metrics.progress.totalStoryPoints > 0 && (
             <p className="text-xs text-gray-400 mt-2">{metrics.progress.completedStoryPoints} de {metrics.progress.totalStoryPoints} SP completados ({metrics.progress.storyPointsCompletionRate.toFixed(0)}%)</p>
           )}
+        </div>
+      )}
+
+      {/* Value Metrics */}
+      {metrics.valueMetrics && (
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Métricas de Valor</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <div className="text-center">
+              <p className="text-xl font-bold text-primary">{metrics.valueMetrics.productionDeployRate.toFixed(0)}%</p>
+              <p className="text-xs text-gray-500">Tasa de Despliegue</p>
+              <p className="text-xs text-gray-400">Issues en Producción</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-green-600">{metrics.valueMetrics.inProductionCount}</p>
+              <p className="text-xs text-gray-500">En Producción</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-amber-600">{metrics.valueMetrics.completedNotDeployed}</p>
+              <p className="text-xs text-gray-500">Completadas sin Desplegar</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-purple-600">{metrics.valueMetrics.timeToProduction !== null ? metrics.valueMetrics.timeToProduction.toFixed(1) + 'd' : '—'}</p>
+              <p className="text-xs text-gray-500">Tiempo a Producción</p>
+              <p className="text-xs text-gray-400">Creación → Producción</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs font-medium text-gray-600 mb-1">Planificado vs Entregado</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-bold text-gray-900">{metrics.valueMetrics.plannedVsDelivered.ratio.toFixed(0)}%</span>
+                <span className="text-xs text-gray-500">{metrics.valueMetrics.plannedVsDelivered.delivered} de {metrics.valueMetrics.plannedVsDelivered.planned}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                <div className="bg-primary h-2 rounded-full" style={{width: Math.min(metrics.valueMetrics.plannedVsDelivered.ratio, 100) + '%'}} />
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs font-medium text-gray-600 mb-1">Valor por Prioridad (Completadas)</p>
+              <div className="flex gap-2">
+                {metrics.valueMetrics.valueByPriority.high > 0 && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Alto: {metrics.valueMetrics.valueByPriority.high}</span>}
+                {metrics.valueMetrics.valueByPriority.medium > 0 && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Medio: {metrics.valueMetrics.valueByPriority.medium}</span>}
+                {metrics.valueMetrics.valueByPriority.low > 0 && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Bajo: {metrics.valueMetrics.valueByPriority.low}</span>}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

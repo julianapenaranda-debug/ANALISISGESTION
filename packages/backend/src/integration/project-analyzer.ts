@@ -474,11 +474,21 @@ export interface IssueTypeBreakdown {
   done: number;
 }
 
+export interface ValueMetrics {
+  productionDeployRate: number;       // % of completed issues that reached "Producción"
+  inProductionCount: number;          // issues in "Producción" status
+  completedNotDeployed: number;       // issues Done but not in Producción
+  plannedVsDelivered: { planned: number; delivered: number; ratio: number };
+  timeToProduction: number | null;    // avg days from created to "Producción" transition
+  valueByPriority: { high: number; medium: number; low: number };
+}
+
 export interface ExtendedProjectMetrics extends ProjectMetrics {
   quality: QualityMetrics;
   production: ProductionHealth;
   progress: InitiativeProgress;
   issueTypeBreakdown: IssueTypeBreakdown[];
+  valueMetrics?: ValueMetrics;
 }
 
 /**
@@ -689,5 +699,74 @@ export async function analyzeProjectExtended(
     production: calculateProductionHealth(incidentsAndProblems),
     progress,
     issueTypeBreakdown,
+    valueMetrics: calculateValueMetrics(allIssues, stories, startDate),
+  };
+}
+
+
+// ---------------------------------------------------------------------------
+// Value Metrics
+// ---------------------------------------------------------------------------
+
+function calculateValueMetrics(allIssues: any[], stories: any[], startDate?: string): ValueMetrics {
+  const PRODUCTION_STATUSES = ['producción', 'production'];
+
+  // 1. Production Deploy Rate
+  const completed = allIssues.filter(i => {
+    const status = (i.fields?.status?.name ?? '').toLowerCase();
+    return status === 'done' || status === 'closed' || status === 'resolved' || status === 'producción' || status === 'hecho';
+  });
+
+  const inProduction = allIssues.filter(i => {
+    const status = (i.fields?.status?.name ?? '').toLowerCase();
+    return PRODUCTION_STATUSES.some(ps => status.includes(ps));
+  });
+
+  const completedNotDeployed = completed.length - inProduction.length;
+  const productionDeployRate = completed.length > 0
+    ? (inProduction.length / completed.length) * 100
+    : 0;
+
+  // 2. Planned vs Delivered
+  const planned = startDate
+    ? allIssues.filter(i => (i.fields?.created ?? '').slice(0, 10) <= startDate).length
+    : allIssues.length;
+  const delivered = completed.length;
+  const ratio = planned > 0 ? (delivered / planned) * 100 : 0;
+
+  // 3. Time to Production (from created to Producción status)
+  const timeToProductionDays: number[] = [];
+  for (const issue of inProduction) {
+    const created = issue.fields?.created;
+    const resolved = issue.fields?.resolutiondate;
+    if (created && resolved) {
+      const days = (new Date(resolved).getTime() - new Date(created).getTime()) / (1000 * 60 * 60 * 24);
+      if (days >= 0) timeToProductionDays.push(days);
+    }
+  }
+  const timeToProduction = timeToProductionDays.length > 0
+    ? timeToProductionDays.reduce((a, b) => a + b, 0) / timeToProductionDays.length
+    : null;
+
+  // 4. Value by Priority (proxy for impact)
+  const valueByPriority = { high: 0, medium: 0, low: 0 };
+  for (const issue of completed) {
+    const priority = (issue.fields?.priority?.name ?? '').toLowerCase();
+    if (priority.includes('highest') || priority.includes('critical') || priority.includes('high')) {
+      valueByPriority.high++;
+    } else if (priority.includes('low') || priority.includes('lowest')) {
+      valueByPriority.low++;
+    } else {
+      valueByPriority.medium++;
+    }
+  }
+
+  return {
+    productionDeployRate: Math.round(productionDeployRate * 10) / 10,
+    inProductionCount: inProduction.length,
+    completedNotDeployed: Math.max(0, completedNotDeployed),
+    plannedVsDelivered: { planned, delivered, ratio: Math.round(ratio * 10) / 10 },
+    timeToProduction: timeToProduction !== null ? Math.round(timeToProduction * 10) / 10 : null,
+    valueByPriority,
   };
 }

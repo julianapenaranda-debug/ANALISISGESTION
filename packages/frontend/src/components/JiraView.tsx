@@ -41,7 +41,7 @@ export default function JiraView() {
     setError('');
     try {
       const data: any = await apiClient.get(
-        `/jira/projects?credentialKey=${CREDENTIAL_KEY}`,
+        `/jira/projects?credentialKey=${CREDENTIAL_KEY}&prefix=GD,PRY`,
       );
       setProjects(data);
       setStep('projects');

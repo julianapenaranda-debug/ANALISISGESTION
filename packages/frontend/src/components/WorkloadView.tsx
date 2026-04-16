@@ -80,6 +80,12 @@ const PRODUCTIVITY_BADGE: Record<ProductivityStatus, string> = {
   low: 'bg-red-100 text-red-700',
 };
 
+const PRODUCTIVITY_LABEL: Record<ProductivityStatus, string> = {
+  high: 'Flujo eficiente',
+  normal: 'Flujo interrumpido',
+  low: 'Flujo bloqueado',
+};
+
 const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   overloaded: 'Sobrecarga',
   low_productivity: 'Baja productividad',
@@ -124,7 +130,7 @@ function SummaryCards({ summary }: { summary: WorkloadSummary }) {
     observations.push({ text: `🟠 WIP excesivo (${summary.teamWIP} HUs para ${summary.totalDevelopers} devs). Se recomienda máximo 2 HUs en progreso por desarrollador.`, severity: 'medium' });
   }
   if (summary.predictabilityIndex !== null && summary.predictabilityIndex < 0.5) {
-    observations.push({ text: `🟡 Predictibilidad baja (${pct(summary.predictabilityIndex)}). La velocidad varía mucho entre desarrolladores.`, severity: 'medium' });
+    observations.push({ text: `🟡 Predictibilidad baja (${pct(summary.predictabilityIndex)}). El equipo cumple menos del 50% de los compromisos planificados.`, severity: 'medium' });
   }
   if (summary.spDistributionEquity !== null && summary.spDistributionEquity < 0.5) {
     observations.push({ text: `🟡 Carga desbalanceada (equidad ${pct(summary.spDistributionEquity)}). Las issues no están distribuidas equitativamente.`, severity: 'medium' });
@@ -142,7 +148,7 @@ function SummaryCards({ summary }: { summary: WorkloadSummary }) {
 
   const advancedCards: { value: string; label: string; color: string; tooltip: string }[] = [];
   if (summary.averageStoryPointsPerDeveloper > 0) advancedCards.push({ value: fmt(summary.averageStoryPointsPerDeveloper)!, label: 'Issues Activas/Dev', color: 'text-gray-900', tooltip: 'Issues activas promedio por desarrollador.' });
-  if (pct(summary.predictabilityIndex)) advancedCards.push({ value: pct(summary.predictabilityIndex)!, label: 'Predictibilidad', color: 'text-teal-600', tooltip: 'Consistencia de velocidad entre desarrolladores (0-100%).' });
+  if (pct(summary.predictabilityIndex)) advancedCards.push({ value: pct(summary.predictabilityIndex)!, label: 'Predictibilidad', color: 'text-teal-600', tooltip: '% de compromisos cumplidos vs planificados. Mide qué tan predecible es la entrega del equipo.' });
   if (pct(summary.spDistributionEquity)) advancedCards.push({ value: pct(summary.spDistributionEquity)!, label: 'Equidad de Carga', color: 'text-cyan-600', tooltip: 'Distribución equitativa de issues entre desarrolladores (0-100%).' });
 
   return (
@@ -233,7 +239,7 @@ function DeveloperTable({ developers }: { developers: DeveloperMetrics[] }) {
   function getDevObservations(dev: DeveloperMetrics): string[] {
     const obs: string[] = [];
     if (dev.workloadStatus === 'overloaded') obs.push('🔴 Sobrecargado');
-    if (dev.productivityStatus === 'low') obs.push('🟠 Productividad baja');
+    if (dev.productivityStatus === 'low') obs.push('🟠 Flujo bloqueado');
     if (dev.multitaskingAlert) obs.push(`⚠️ Multitasking (${dev.storiesInProgress} HUs en progreso)`);
     if (dev.agingWIPDays !== null && dev.agingWIPDays > 10) obs.push(`🟡 HUs estancadas (${fmt(dev.agingWIPDays)}d en progreso)`);
     if (dev.reworkCount > 0) obs.push(`🔄 ${dev.reworkCount} HU(s) con re-trabajo`);
@@ -290,7 +296,7 @@ function DeveloperTable({ developers }: { developers: DeveloperMetrics[] }) {
                     {hasLeadTime && <td className="px-3 py-2 text-center text-gray-700">{fmt(dev.leadTimeIndividual) && dev.leadTimeIndividual && dev.leadTimeIndividual > 0 ? fmt(dev.leadTimeIndividual) + 'd' : '—'}</td>}
                     <td className="px-3 py-2 text-center">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PRODUCTIVITY_BADGE[dev.productivityStatus]}`}>
-                        {dev.productivityStatus}
+                        {PRODUCTIVITY_LABEL[dev.productivityStatus]}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-left">

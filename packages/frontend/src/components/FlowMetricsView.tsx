@@ -414,6 +414,8 @@ export default function FlowMetricsView() {
   const [endDate, setEndDate] = useState('');
   const [report, setReport] = useState<FlowMetricsReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [diagnosis, setDiagnosis] = useState<string | null>(null);
+  const [diagnosisLoading, setDiagnosisLoading] = useState(false);
 
   const isConnected = connections.jira === 'connected';
 
@@ -579,6 +581,41 @@ export default function FlowMetricsView() {
         <BottlenecksSection bottlenecks={report.bottlenecks} />
         <AgingIssuesSection issues={report.agingIssues} />
         <RecommendationsSection recommendations={report.recommendations} />
+
+        {/* AI Diagnosis */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700">🧠 Diagnóstico IA de la Iniciativa</h3>
+            <button
+              onClick={async () => {
+                setDiagnosisLoading(true); setDiagnosis(null);
+                try {
+                  const res = await apiClient.post<{ diagnosis: string }>('/flow-metrics/diagnose', { metrics: report });
+                  setDiagnosis(res.diagnosis);
+                } catch (err: any) { setDiagnosis('Error generando diagnóstico: ' + (err.message || 'intenta de nuevo')); }
+                finally { setDiagnosisLoading(false); }
+              }}
+              disabled={diagnosisLoading}
+              className="bg-primary text-white py-1.5 px-4 rounded-lg text-xs font-medium hover:bg-primary-dark disabled:opacity-50 transition-colors"
+            >
+              {diagnosisLoading ? 'Analizando...' : diagnosis ? 'Regenerar' : 'Generar Diagnóstico'}
+            </button>
+          </div>
+          {diagnosisLoading && (
+            <div className="flex items-center gap-2 py-4">
+              <div className="w-4 h-4 border-2 border-primary-light border-t-primary rounded-full animate-spin" />
+              <span className="text-sm text-gray-500">Gemini está analizando la iniciativa...</span>
+            </div>
+          )}
+          {diagnosis && !diagnosisLoading && (
+            <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-line leading-relaxed">
+              {diagnosis}
+            </div>
+          )}
+          {!diagnosis && !diagnosisLoading && (
+            <p className="text-xs text-gray-400">Haz clic en "Generar Diagnóstico" para obtener un análisis ejecutivo con recomendaciones accionables.</p>
+          )}
+        </div>
 
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>}
       </div>

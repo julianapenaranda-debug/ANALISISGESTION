@@ -852,6 +852,58 @@ router.post('/support-jira/analyze', async (req: Request, res: Response) => {
 
 // ─── Flow Metrics ─────────────────────────────────────────────────────────────
 
+// POST /api/flow-metrics/diagnose
+// Body: { metrics (the flow metrics report data) }
+router.post('/flow-metrics/diagnose', async (req: Request, res: Response) => {
+  try {
+    const { metrics } = req.body;
+    if (!metrics) return res.status(400).json({ error: 'metrics es requerido' });
+
+    const { callLLM } = await import('../core/llm-client');
+
+    const prompt = `Analiza esta iniciativa "${metrics.projectKey}" con estas métricas:
+
+- Entregas completadas: ${metrics.summary?.throughputTotal || 0}
+- Trabajo en curso (WIP): ${metrics.summary?.wipTotal || 0}
+- Eficiencia de flujo: ${metrics.summary?.flowEfficiencyAverage ? metrics.summary.flowEfficiencyAverage.toFixed(1) + '%' : 'Sin datos'}
+- Tipología: ${metrics.typology?.valueWorkPercent?.toFixed(0) || 0}% trabajo de valor, ${metrics.typology?.supportWorkPercent?.toFixed(0) || 0}% soporte
+- Issues estancados: ${metrics.agingIssues?.length || 0}
+- Cuellos de botella: ${metrics.bottlenecks?.length || 0}
+- Carga cognitiva: ${metrics.cognitiveLoad?.teamFocusScore || 0}% del equipo enfocado
+- Desarrolladores en rojo: ${metrics.cognitiveLoad?.developers?.filter((d: any) => d.alertLevel === 'red').length || 0}
+- Desarrolladores en amarillo: ${metrics.cognitiveLoad?.developers?.filter((d: any) => d.alertLevel === 'yellow').length || 0}
+- Recomendaciones activas: ${metrics.recommendations?.length || 0}
+
+Responde en español con este formato exacto (sin markdown, texto plano):
+
+DIAGNÓSTICO: [máx 2 líneas resumiendo el estado real]
+
+CLASIFICACIÓN: [elegir SOLO una]
+🟢 Fluye y genera valor
+🟡 Fluye pero con riesgos
+🟠 Lenta / con fricciones
+🔴 Crítica / bloqueada
+
+DECISIÓN RECOMENDADA: [elegir SOLO una acción principal de esta lista: Continuar igual, Acelerar, Rebalancear equipo, Reducir WIP, Desbloquear dependencias, Dividir iniciativa, Pausar iniciativa, Escalar, Revisar prioridad]
+
+ACCIONES CONCRETAS:
+1. [acción específica y ejecutable]
+2. [acción específica y ejecutable]
+3. [acción específica y ejecutable]
+
+IMPACTO ESPERADO: [1-2 líneas sobre qué mejorará]
+
+URGENCIA: [Alta / Media / Baja]`;
+
+    const systemPrompt = 'Eres un experto en gestión de portafolio de productos digitales y eficiencia de equipos ágiles. NO evalúes personas individuales. Analiza el sistema. Prioriza decisiones sobre explicaciones. Sé directo, claro y accionable. Responde en español.';
+
+    const diagnosis = await callLLM(systemPrompt, prompt);
+    return res.json({ diagnosis });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Error generando diagnóstico' });
+  }
+});
+
 // POST /api/flow-metrics/analyze
 // Body: { projectKey, credentialKey, filters? }
 router.post('/flow-metrics/analyze', async (req: Request, res: Response) => {
