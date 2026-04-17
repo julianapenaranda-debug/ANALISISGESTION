@@ -20,18 +20,14 @@ RUN cd packages/frontend && npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+COPY --from=builder /app/node_modules node_modules
+COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/packages/backend/dist packages/backend/dist
 COPY --from=builder /app/packages/backend/package*.json packages/backend/
-COPY --from=builder /app/packages/backend/node_modules packages/backend/node_modules
 COPY --from=builder /app/packages/shared/dist packages/shared/dist
 COPY --from=builder /app/packages/shared/package*.json packages/shared/
 COPY --from=builder /app/packages/frontend/dist packages/frontend/dist
-COPY --from=builder /app/node_modules node_modules
-COPY --from=builder /app/package*.json ./
 
-# Serve frontend static files from backend
 ENV NODE_ENV=production
-ENV PORT=8080
 
-# Start backend (serves API + static frontend)
 CMD ["node", "packages/backend/dist/index.js"]

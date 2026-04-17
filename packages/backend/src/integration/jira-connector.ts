@@ -805,12 +805,77 @@ export async function fetchProjectSprints(
 // Project Listing Extension
 // ---------------------------------------------------------------------------
 
+export interface InitiativeContext {
+  tribu: string;
+  squad: string;
+  tipoIniciativa: string;
+  anioEjecucion: string;
+  centroCostos: string;
+  avanceEsperado: number | null;
+  avanceReal: number | null;
+}
+
+const CUSTOM_FIELDS = {
+  TRIBU: 'customfield_28477',
+  SQUAD: 'customfield_28478',
+  TIPO_INICIATIVA: 'customfield_27929',
+  ANIO_EJECUCION: 'customfield_25441',
+  CENTRO_COSTOS: 'customfield_15601',
+  AVANCE_ESPERADO: 'customfield_25475',
+  AVANCE_REAL: 'customfield_25476',
+} as const;
+
+export const DEFAULT_INITIATIVE_CONTEXT: InitiativeContext = {
+  tribu: '',
+  squad: '',
+  tipoIniciativa: '',
+  anioEjecucion: '',
+  centroCostos: '',
+  avanceEsperado: null,
+  avanceReal: null,
+};
+
+/**
+ * Extracts a text value from a Jira custom field.
+ * Handles null, undefined, plain string, { value: string }, { name: string },
+ * and arrays like [{ value: string }] (e.g. Año de Ejecución).
+ */
+export function extractTextField(field: any): string {
+  if (!field) return '';
+  if (typeof field === 'string') return field;
+  // Handle array fields (e.g. multi-select or single-select returned as array)
+  if (Array.isArray(field)) {
+    if (field.length === 0) return '';
+    return extractTextField(field[0]);
+  }
+  if (field.value) return String(field.value);
+  if (field.name) return String(field.name);
+  return '';
+}
+
+/**
+ * Extracts a numeric value from a Jira custom field.
+ * Handles null, undefined, number, numeric string. Returns null for NaN.
+ */
+export function extractNumericField(field: any): number | null {
+  if (field === null || field === undefined) return null;
+  const num = typeof field === 'number' ? field : parseFloat(String(field));
+  return isNaN(num) ? null : num;
+}
+
 export interface JiraProject {
   id: string;
   key: string;
   name: string;
   projectTypeKey: string;
   avatarUrl?: string;
+  tribu?: string;
+  squad?: string;
+  tipoIniciativa?: string;
+  anioEjecucion?: string;
+  centroCostos?: string;
+  avanceEsperado?: number | null;
+  avanceReal?: number | null;
 }
 
 /**
@@ -838,8 +903,90 @@ async function findCustomFieldId(credentials: JiraCredentials, fieldName: string
 }
 
 /**
+ * Fetches initiative context (custom fields) for a single project.
+ * Uses JQL to find the lead Iniciativa issue and extracts the 7 custom fields.
+ * Returns DEFAULT_INITIATIVE_CONTEXT on error or when no Iniciativa issue exists.
+ * Requerimientos: 1.1, 1.2, 1.3
+ */
+export async function fetchInitiativeContext(
+  credentials: JiraCredentials,
+  projectKey: string
+): Promise<InitiativeContext> {
+  try {
+    const jql = `project = "${projectKey}" AND issuetype = Iniciativa ORDER BY created DESC`;
+    const fieldIds = Object.values(CUSTOM_FIELDS);
+
+    const response = await jiraRequest(credentials, 'POST', '/rest/api/3/search/jql', {
+      jql,
+      fields: fieldIds,
+      maxResults: 1,
+    });
+
+    const issues: any[] = response?.issues ?? [];
+    if (issues.length === 0) {
+      return { ...DEFAULT_INITIATIVE_CONTEXT };
+    }
+
+    const fields = issues[0].fields ?? {};
+
+    return {
+      tribu: extractTextField(fields[CUSTOM_FIELDS.TRIBU]),
+      squad: extractTextField(fields[CUSTOM_FIELDS.SQUAD]),
+      tipoIniciativa: extractTextField(fields[CUSTOM_FIELDS.TIPO_INICIATIVA]),
+      anioEjecucion: extractTextField(fields[CUSTOM_FIELDS.ANIO_EJECUCION]),
+      centroCostos: extractTextField(fields[CUSTOM_FIELDS.CENTRO_COSTOS]),
+      avanceEsperado: extractNumericField(fields[CUSTOM_FIELDS.AVANCE_ESPERADO]),
+      avanceReal: extractNumericField(fields[CUSTOM_FIELDS.AVANCE_REAL]),
+    };
+  } catch (error: any) {
+    console.warn(`[jira-connector] Failed to fetch initiative context for ${projectKey}:`, error?.message ?? error);
+    return { ...DEFAULT_INITIATIVE_CONTEXT };
+  }
+}
+
+/**
+ * Filters projects by tribu, squad, and/or anioEjecucion using AND logic.
+ * Only active (non-empty) filters are applied.
+ */
+export function filterProjects(projects: JiraProject[], filters: { tribu?: string; squad?: string; anio?: string }): JiraProject[] {
+  return projects.filter(p => {
+    if (filters.tribu && p.tribu !== filters.tribu) return false;
+    if (filters.squad && p.squad !== filters.squad) return false;
+    if (filters.anio && p.anioEjecucion !== filters.anio) return false;
+    return true;
+  });
+}
+
+/**
+ * Computes distinct non-empty filter option values from a project list.
+ * Tribus and squads are sorted alphabetically; anios are sorted descending.
+ */
+export function computeFilterOptions(projects: JiraProject[]): { tribus: string[]; squads: string[]; anios: string[]; tribuSquadMap: Record<string, string[]> } {
+  const tribus = [...new Set(projects.map(p => p.tribu).filter((v): v is string => Boolean(v)))].sort();
+  const squads = [...new Set(projects.map(p => p.squad).filter((v): v is string => Boolean(v)))].sort();
+  const anios = [...new Set(projects.map(p => p.anioEjecucion).filter((v): v is string => Boolean(v)))].sort((a, b) => b.localeCompare(a));
+
+  // Build tribu → squads mapping
+  const tribuSquadMap: Record<string, Set<string>> = {};
+  for (const p of projects) {
+    if (p.tribu && p.squad) {
+      if (!tribuSquadMap[p.tribu]) tribuSquadMap[p.tribu] = new Set();
+      tribuSquadMap[p.tribu].add(p.squad);
+    }
+  }
+  const sortedMap: Record<string, string[]> = {};
+  for (const [tribu, squadSet] of Object.entries(tribuSquadMap)) {
+    sortedMap[tribu] = [...squadSet].sort();
+  }
+
+  return { tribus, squads, anios, tribuSquadMap: sortedMap };
+}
+
+/**
  * Fetches all accessible Jira projects, optionally filtered by creation year range.
  * Uses /rest/api/3/project/search with pagination.
+ * Enriches each project with custom fields from its lead Iniciativa issue.
+ * Requerimientos: 1.1, 1.2, 1.3, 1.4
  */
 export async function fetchProjects(
   credentials: JiraCredentials,
@@ -874,6 +1021,38 @@ export async function fetchProjects(
 
     if (response?.isLast || values.length < maxResults) break;
     startAt += maxResults;
+  }
+
+  // Enrich projects with custom fields in parallel batches of 10
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < allProjects.length; i += BATCH_SIZE) {
+    const batch = allProjects.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(project => fetchInitiativeContext(credentials, project.key))
+    );
+
+    results.forEach((result, idx) => {
+      const project = allProjects[i + idx];
+      if (result.status === 'fulfilled') {
+        const ctx = result.value;
+        project.tribu = ctx.tribu;
+        project.squad = ctx.squad;
+        project.tipoIniciativa = ctx.tipoIniciativa;
+        project.anioEjecucion = ctx.anioEjecucion;
+        project.centroCostos = ctx.centroCostos;
+        project.avanceEsperado = ctx.avanceEsperado;
+        project.avanceReal = ctx.avanceReal;
+      } else {
+        // On error, use defaults
+        project.tribu = '';
+        project.squad = '';
+        project.tipoIniciativa = '';
+        project.anioEjecucion = '';
+        project.centroCostos = '';
+        project.avanceEsperado = null;
+        project.avanceReal = null;
+      }
+    });
   }
 
   return allProjects;

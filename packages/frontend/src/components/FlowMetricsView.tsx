@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { apiClient } from '../api/client';
+import InitiativeContextCard from './InitiativeContextCard';
 
 // ---------------------------------------------------------------------------
 // Types (mirrors backend FlowMetricsReport)
@@ -45,6 +46,7 @@ interface FlowMetricsReport {
   cognitiveLoad?: CognitiveLoadSummary;
   cfd?: CFDData;
   scopeCreep?: ScopeCreepData;
+  initiativeContext?: { tribu: string; squad: string; tipoIniciativa: string; anioEjecucion: string; avanceEsperado: number | null; avanceReal: number | null };
 }
 
 // ---------------------------------------------------------------------------
@@ -571,6 +573,15 @@ export default function FlowMetricsView() {
           </div>
           <button onClick={handleReset} className="text-xs text-gray-500 hover:text-gray-700 shrink-0">← Nuevo análisis</button>
         </div>
+
+        <InitiativeContextCard
+          tribu={report.initiativeContext?.tribu ?? ''}
+          squad={report.initiativeContext?.squad ?? ''}
+          tipoIniciativa={report.initiativeContext?.tipoIniciativa ?? ''}
+          anioEjecucion={report.initiativeContext?.anioEjecucion ?? ''}
+          avanceEsperado={report.initiativeContext?.avanceEsperado ?? null}
+          avanceReal={report.initiativeContext?.avanceReal ?? null}
+        />
 
         {report.cognitiveLoad && <CognitiveLoadSection data={report.cognitiveLoad} />}
         <TypologyBar typology={report.typology} />

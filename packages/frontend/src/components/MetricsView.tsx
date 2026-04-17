@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
 import { useAppStore } from '../store/useAppStore';
+import InitiativeContextCard from './InitiativeContextCard';
 
 const CREDENTIAL_KEY = 'jira-main';
 
@@ -21,6 +22,7 @@ interface Metrics {
   issueTypeBreakdown?: Array<{ type: string; total: number; open: number; done: number }>;
   progress?: { totalStories: number; completedStories: number; inProgressStories: number; todoStories: number; completionRate: number; totalStoryPoints: number; completedStoryPoints: number; storyPointsCompletionRate: number };
   valueMetrics?: { productionDeployRate: number; inProductionCount: number; completedNotDeployed: number; plannedVsDelivered: { planned: number; delivered: number; ratio: number }; timeToProduction: number | null; valueByPriority: { high: number; medium: number; low: number } };
+  initiativeContext?: { tribu: string; squad: string; tipoIniciativa: string; anioEjecucion: string; avanceEsperado: number | null; avanceReal: number | null };
 }
 
 export default function MetricsView() {
@@ -224,6 +226,15 @@ export default function MetricsView() {
             className="text-xs text-gray-500 hover:text-gray-700">Limpiar fechas</button>
         )}
       </div>
+
+      <InitiativeContextCard
+        tribu={metrics.initiativeContext?.tribu ?? ''}
+        squad={metrics.initiativeContext?.squad ?? ''}
+        tipoIniciativa={metrics.initiativeContext?.tipoIniciativa ?? ''}
+        anioEjecucion={metrics.initiativeContext?.anioEjecucion ?? ''}
+        avanceEsperado={metrics.initiativeContext?.avanceEsperado ?? null}
+        avanceReal={metrics.initiativeContext?.avanceReal ?? null}
+      />
 
       {/* Key metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

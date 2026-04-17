@@ -22,6 +22,11 @@ import {
   fetchProjectEpics,
   createIssues,
   JiraCredentials,
+  filterProjects,
+  computeFilterOptions,
+  fetchInitiativeContext,
+  DEFAULT_INITIATIVE_CONTEXT,
+  InitiativeContext,
 } from '../integration/jira-connector';
 import { analyzeProject, analyzeProjectExtended } from '../integration/project-analyzer';
 import { CredentialStore } from '../storage/credential-store';
@@ -261,7 +266,7 @@ router.post('/jira/sync', async (req: Request, res: Response) => {
 });
 
 // GET /api/jira/projects
-// Query: credentialKey (required), startYear?, endYear?, prefix?
+// Query: credentialKey (required), startYear?, endYear?, prefix?, tribu?, squad?, anio?
 router.get('/jira/projects', async (req: Request, res: Response) => {
   try {
     const credentialKey = req.query.credentialKey as string;
@@ -270,6 +275,9 @@ router.get('/jira/projects', async (req: Request, res: Response) => {
     const prefix = req.query.prefix as string | undefined;
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
+    const tribu = req.query.tribu as string | undefined;
+    const squad = req.query.squad as string | undefined;
+    const anio = req.query.anio as string | undefined;
 
     if (!credentialKey) {
       return res.status(400).json({ error: 'credentialKey query param is required' });
@@ -281,7 +289,14 @@ router.get('/jira/projects', async (req: Request, res: Response) => {
     }
 
     const projects = await fetchProjects(credentials as unknown as JiraCredentials, startYear, endYear, prefix, startDate, endDate);
-    return res.json(projects);
+
+    // Compute filter options from the full (unfiltered) list
+    const filters = computeFilterOptions(projects);
+
+    // Apply active filters
+    const filteredProjects = filterProjects(projects, { tribu, squad, anio });
+
+    return res.json({ projects: filteredProjects, filters });
   } catch (error: any) {
     if (error.code === 'JIRA_AUTH_FAILED') {
       return res.status(401).json({ error: error.message });
@@ -363,7 +378,16 @@ router.get('/projects/:projectKey/metrics', async (req: Request, res: Response) 
     const metrics = await analyzeProjectExtended(credentials as unknown as JiraCredentials, projectKey, startDate, endDate);
     // Add Jira base URL for deep linking
     const jiraBaseUrl = (credentials as any).baseUrl || '';
-    return res.json({ ...metrics, jiraBaseUrl });
+
+    // Fetch initiative context
+    let initiativeContext: InitiativeContext;
+    try {
+      initiativeContext = await fetchInitiativeContext(credentials as unknown as JiraCredentials, projectKey);
+    } catch {
+      initiativeContext = { ...DEFAULT_INITIATIVE_CONTEXT };
+    }
+
+    return res.json({ ...metrics, jiraBaseUrl, initiativeContext });
   } catch (error) {
     return res.status(500).json(formatErrorResponse(error));
   }
@@ -777,7 +801,21 @@ router.post('/workload/analyze', async (req: Request, res: Response) => {
     const { projectKey, credentialKey, filters } = parsed.data;
 
     const report = await analyzeWorkload({ projectKey, credentialKey, filters });
-    return res.json(report);
+
+    // Fetch initiative context
+    let initiativeContext: InitiativeContext;
+    try {
+      const credentials = await credentialStore.retrieve(credentialKey);
+      if (credentials) {
+        initiativeContext = await fetchInitiativeContext(credentials as unknown as JiraCredentials, projectKey);
+      } else {
+        initiativeContext = { ...DEFAULT_INITIATIVE_CONTEXT };
+      }
+    } catch {
+      initiativeContext = { ...DEFAULT_INITIATIVE_CONTEXT };
+    }
+
+    return res.json({ ...report, initiativeContext });
   } catch (error: any) {
     if (error.code === 'CREDENTIALS_NOT_FOUND') {
       return res.status(404).json({ error: error.message });
@@ -916,7 +954,21 @@ router.post('/flow-metrics/analyze', async (req: Request, res: Response) => {
     const { projectKey, credentialKey, filters } = parsed.data;
 
     const report = await analyzeFlowMetrics({ projectKey, credentialKey, filters });
-    return res.json(report);
+
+    // Fetch initiative context
+    let initiativeContext: InitiativeContext;
+    try {
+      const credentials = await credentialStore.retrieve(credentialKey);
+      if (credentials) {
+        initiativeContext = await fetchInitiativeContext(credentials as unknown as JiraCredentials, projectKey);
+      } else {
+        initiativeContext = { ...DEFAULT_INITIATIVE_CONTEXT };
+      }
+    } catch {
+      initiativeContext = { ...DEFAULT_INITIATIVE_CONTEXT };
+    }
+
+    return res.json({ ...report, initiativeContext });
   } catch (error: any) {
     if (error.code === 'CREDENTIALS_NOT_FOUND') {
       return res.status(404).json({ error: error.message });

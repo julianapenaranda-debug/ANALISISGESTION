@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import InitiativeContextCard from './InitiativeContextCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -60,6 +61,7 @@ interface WorkloadReport {
   developers: DeveloperMetrics[];
   alerts: WorkloadAlert[];
   hasAlerts: boolean;
+  initiativeContext?: { tribu: string; squad: string; tipoIniciativa: string; anioEjecucion: string; avanceEsperado: number | null; avanceReal: number | null };
 }
 
 const WORKLOAD_ROW_BG: Record<WorkloadStatus, string> = {
@@ -523,6 +525,15 @@ export default function WorkloadView() {
             ← Nuevo análisis
           </button>
         </div>
+
+        <InitiativeContextCard
+          tribu={report.initiativeContext?.tribu ?? ''}
+          squad={report.initiativeContext?.squad ?? ''}
+          tipoIniciativa={report.initiativeContext?.tipoIniciativa ?? ''}
+          anioEjecucion={report.initiativeContext?.anioEjecucion ?? ''}
+          avanceEsperado={report.initiativeContext?.avanceEsperado ?? null}
+          avanceReal={report.initiativeContext?.avanceReal ?? null}
+        />
 
         <SummaryCards summary={report.summary} />
 

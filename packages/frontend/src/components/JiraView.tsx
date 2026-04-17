@@ -10,6 +10,13 @@ interface JiraProject {
   name: string;
   projectTypeKey: string;
   avatarUrl?: string;
+  tribu?: string;
+  squad?: string;
+  tipoIniciativa?: string;
+  anioEjecucion?: string;
+  centroCostos?: string;
+  avanceEsperado?: number | null;
+  avanceReal?: number | null;
 }
 
 type Step = 'projects' | 'ready';
@@ -27,6 +34,11 @@ export default function JiraView() {
   const [selectedProject, setSelectedProject] = useState<JiraProject | null>(null);
   const [syncResult, setSyncResult] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterOptions, setFilterOptions] = useState<{ tribus: string[]; squads: string[]; anios: string[]; tribuSquadMap?: Record<string, string[]> }>({ tribus: [], squads: [], anios: [] });
+  const [selectedTribu, setSelectedTribu] = useState('');
+  const [selectedSquad, setSelectedSquad] = useState('');
+  const [selectedAnio, setSelectedAnio] = useState('');
+  const [totalProjects, setTotalProjects] = useState(0);
 
   const isConnected = connections.jira === 'connected';
 
@@ -36,14 +48,21 @@ export default function JiraView() {
     }
   }, [isConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadProjects = async () => {
+  const loadProjects = async (tribu = selectedTribu, squad = selectedSquad, anio = selectedAnio) => {
     setLoading(true);
     setError('');
     try {
-      const data: any = await apiClient.get(
-        `/jira/projects?credentialKey=${CREDENTIAL_KEY}&prefix=GD,PRY`,
-      );
-      setProjects(data);
+      let url = `/jira/projects?credentialKey=${CREDENTIAL_KEY}&prefix=GD,PRY`;
+      if (tribu) url += `&tribu=${encodeURIComponent(tribu)}`;
+      if (squad) url += `&squad=${encodeURIComponent(squad)}`;
+      if (anio) url += `&anio=${encodeURIComponent(anio)}`;
+      const data: any = await apiClient.get(url);
+      const { projects: projectList, filters } = data;
+      setProjects(projectList);
+      setFilterOptions(filters);
+      if (!tribu && !squad && !anio) {
+        setTotalProjects(projectList.length);
+      }
       setStep('projects');
     } catch (err: any) {
       setError(err.message || 'Error al cargar proyectos.');
@@ -52,6 +71,35 @@ export default function JiraView() {
     }
   };
 
+
+  const handleFilterChange = (field: 'tribu' | 'squad' | 'anio', value: string) => {
+    let newTribu = field === 'tribu' ? value : selectedTribu;
+    let newSquad = field === 'squad' ? value : selectedSquad;
+    const newAnio = field === 'anio' ? value : selectedAnio;
+
+    // When tribu changes, reset squad if it doesn't belong to the new tribu
+    if (field === 'tribu' && value && selectedSquad) {
+      const validSquads = filterOptions.tribuSquadMap?.[value] || [];
+      if (!validSquads.includes(selectedSquad)) {
+        newSquad = '';
+        setSelectedSquad('');
+      }
+    }
+
+    if (field === 'tribu') setSelectedTribu(value);
+    if (field === 'squad') setSelectedSquad(value);
+    if (field === 'anio') setSelectedAnio(value);
+    loadProjects(newTribu, newSquad, newAnio);
+  };
+
+  const handleClearFilters = () => {
+    setSelectedTribu('');
+    setSelectedSquad('');
+    setSelectedAnio('');
+    loadProjects('', '', '');
+  };
+
+  const hasActiveFilters = selectedTribu || selectedSquad || selectedAnio;
 
   const handleSelectProject = (project: JiraProject) => {
     setSelectedProject(project);
@@ -115,9 +163,58 @@ export default function JiraView() {
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-1">Iniciativas Jira</h2>
             <p className="text-sm text-gray-500">
-              {projects.length} proyecto{projects.length !== 1 ? 's' : ''} encontrado{projects.length !== 1 ? 's' : ''}
+              {hasActiveFilters
+                ? `Mostrando ${projects.length} de ${totalProjects} iniciativas`
+                : `${projects.length} proyecto${projects.length !== 1 ? 's' : ''} encontrado${projects.length !== 1 ? 's' : ''}`}
             </p>
           </div>
+
+          {/* Filter Panel */}
+          {!loading && (filterOptions.tribus.length > 0 || filterOptions.squads.length > 0 || filterOptions.anios.length > 0) && (
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <select
+                value={selectedTribu}
+                onChange={(e) => handleFilterChange('tribu', e.target.value)}
+                className="border border-gray-300 rounded-md px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Tribu</option>
+                {filterOptions.tribus.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <select
+                value={selectedSquad}
+                onChange={(e) => handleFilterChange('squad', e.target.value)}
+                className="border border-gray-300 rounded-md px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Squad</option>
+                {(selectedTribu && filterOptions.tribuSquadMap?.[selectedTribu]
+                  ? filterOptions.tribuSquadMap[selectedTribu]
+                  : filterOptions.squads
+                ).map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <select
+                value={selectedAnio}
+                onChange={(e) => handleFilterChange('anio', e.target.value)}
+                className="border border-gray-300 rounded-md px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Año</option>
+                {filterOptions.anios.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+              {hasActiveFilters && (
+                <button
+                  onClick={handleClearFilters}
+                  className="text-sm text-gray-500 hover:text-gray-700 underline"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          )}
 
           {!loading && projects.length > 0 && (
             <div className="relative">
@@ -183,6 +280,12 @@ export default function JiraView() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{project.name}</p>
                     <p className="text-xs text-gray-500">{project.key} · {project.projectTypeKey}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      <FieldBadge label="Tribu" value={project.tribu} />
+                      <FieldBadge label="Squad" value={project.squad} />
+                      <FieldBadge label="Tipo" value={project.tipoIniciativa} />
+                      <FieldBadge label="Año" value={project.anioEjecucion} />
+                    </div>
                   </div>
                   <span className="text-xs text-blue-600">Seleccionar →</span>
                 </button>
@@ -259,5 +362,16 @@ function AnalysisCard({ title, description, icon, onClick, disabled, badge }: {
       <p className="text-sm font-semibold text-gray-900">{title}</p>
       <p className="text-xs text-gray-500 leading-relaxed">{description}</p>
     </button>
+  );
+}
+
+function FieldBadge({ label, value }: { label: string; value?: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium"
+      style={{ backgroundColor: '#009056', color: '#fff' }}
+    >
+      <span className="opacity-80">{label}:</span> {value || '—'}
+    </span>
   );
 }
