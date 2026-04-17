@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 type ViewState = 'loading-services' | 'select-services' | 'analyzing' | 'results' | 'error';
 type SuggestedCriticality = 'critical' | 'high' | 'medium' | 'low';
@@ -552,7 +552,7 @@ function CreateIssueModal({ finding, projectKey, credentialKey, onClose, onCreat
     setCreating(true);
     setErr(null);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/support/datadog/create-issue`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/support/datadog/create-issue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ findingId: finding.finding.id, projectKey, credentialKey, title, description, severity, component: finding.affectedService }),

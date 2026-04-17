@@ -64,6 +64,16 @@ app.get('/health', (_req, res) => {
 // API routes
 app.use('/api', routes);
 
+// Serve frontend static files in production
+import path from 'path';
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../../frontend/dist');
+  app.use(express.static(frontendPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
+
 // 404 handler
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
