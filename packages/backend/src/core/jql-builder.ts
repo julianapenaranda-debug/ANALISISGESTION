@@ -10,10 +10,20 @@
 import { WorkloadFilters } from './workload-models';
 
 /**
- * Builds a JQL query string for fetching Story issues with optional filters.
+ * Issue types that represent management/governance work (PO, QA leads, etc.)
+ * These are excluded from the workload analysis to show only developer work.
+ */
+const EXCLUDED_ISSUE_TYPES = ['Epic', 'Iniciativa'];
+
+/**
+ * Builds a JQL query string for fetching developer work items with optional filters.
  *
  * Always includes:
- *   project = <projectKey> AND issuetype = Story AND assignee is not EMPTY
+ *   project = <projectKey> AND assignee is not EMPTY
+ *   AND issuetype not in (Epic, Iniciativa)
+ *
+ * This excludes management-level issue types so only developer work
+ * (Sub-tarea, Historia, Upstream, Spike, Requerimiento Caja, etc.) is analyzed.
  *
  * Optional clauses added when present in filters:
  *   AND sprint = "<filters.sprint>"
@@ -21,9 +31,11 @@ import { WorkloadFilters } from './workload-models';
  *   AND created <= "<filters.endDate>"
  */
 export function buildWorkloadJql(projectKey: string, filters?: WorkloadFilters): string {
+  const excludedTypes = EXCLUDED_ISSUE_TYPES.map(t => `"${t}"`).join(', ');
   const clauses: string[] = [
     `project = ${projectKey}`,
     `assignee is not EMPTY`,
+    `issuetype not in (${excludedTypes})`,
   ];
 
   if (filters?.sprint) {

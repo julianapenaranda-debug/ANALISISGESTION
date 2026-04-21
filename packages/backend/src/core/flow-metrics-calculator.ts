@@ -67,6 +67,7 @@ export function buildFlowMetricsJql(
   const clauses: string[] = [
     `project = ${projectKey}`,
     `assignee is not EMPTY`,
+    `issuetype not in ("Epic", "Iniciativa")`,
   ];
 
   if (filters?.sprint) {
